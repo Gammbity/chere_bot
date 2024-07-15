@@ -2,7 +2,7 @@ from aiogram import F, Bot, Dispatcher
 from aiogram.types import BotCommand
 from asyncio import run
 import functions
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, and_f
 from states import NewMember
 from config import BOT_TOKEN
 from sqlalchemy import create_engine
@@ -34,8 +34,7 @@ async def start():
     dp.message.register(functions.get_language_answer, NewMember.language)
     dp.message.register(functions.get_water_type_answer, NewMember.water)
     dp.message.register(functions.much_water, NewMember.much)
-    dp.message.register(functions.yes_or_no_answer)
-    dp.message.register(functions.location_answer, F.location)
+    dp.message.register(functions.get_location_answer, F.location)
     # dp.shutdown.register(shutdown_answer)
 
     bot = Bot(BOT_TOKEN)
