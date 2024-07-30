@@ -4,8 +4,9 @@ from states import NewMember
 from keyboards import contact_markup, location_markup, lang_markup, water_button_markup, yes_or_no_murkup
 import psycopg2
 import datetime
+from datetime import datetime
 
-now = datetime.datetime.now()
+now = datetime.now()
 commands = f""" Buyruqlar:
         /new - Buyurtma qilish
         /orders - Buyurtmalarim
@@ -91,9 +92,17 @@ async def much_water(message:Message, state:FSMContext):
     if data.get('name'):
         await message.answer(f"Ma'lumotlaringiz:\n\t\tIsmingiz: {data.get('name')}\n\t\tTel: {data.get('phone')}\n\t\tTil: {data.get('lang')}\n\t\tWater: {data.get('water')}\n\t\tMuch: {message.text} ta")
         await message.answer("Buyurtma jo'natilsinimi?")
-    await message.answer(f"Buyurtmangiz:\n\t\tMahsulot: {data.get('water')}\n\t\tSoni: {message.text} ta")
-    cursor.execute("INSERT INTO order_ordermodel (product_id, count, free_count, customer_id, longitude, latitude, status, status_changed_at, product_price, total_price, admin_id, condition) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", 
-                   (message.text, 0, message.from_user.id, data.get('location_latitude'), data.get('location_longitude'), "Yaratildi", now, 100, int(message.text) * 100, 1, "Yaratildi"))
+    
+    cursor.execute("SELECT price FROM product_productmodel WHERE name = %s", (data.get('water'),))
+    now = datetime.now()
+    product_price = cursor.fetchall()
+    total_price = int(message.text) * product_price
+    print(product_price)
+    for water in message.text:
+        print(water)
+        break
+    cursor.execute("INSERT INTO order_ordermodel (product_id, count, free_count, customer_id, longitude, latitude, status, status_changed_at, product_price, total_price, admin_id, condition, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", 
+                   (data.get('water'), message.text, 0, message.from_user.id, data.get('location_latitude'), data.get('location_longitude'), "Yaratildi", now, product_price, total_price, 1, "Yaratildi", now, now))
     connection.commit()
 
 
