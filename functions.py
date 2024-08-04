@@ -5,6 +5,7 @@ from keyboards import contact_markup, location_markup, lang_markup, water_button
 import psycopg2
 import datetime
 from datetime import datetime
+import json
 
 now = datetime.now()
 commands = f""" Buyruqlar:
@@ -46,10 +47,6 @@ async def start_command_answer(message:Message, state:FSMContext):
     await message.answer("Joylashuvingizni kiriting", reply_markup=location_markup)
     await state.set_state(NewMember.location)
 
-async def new_command_answer(message:Message, state:FSMContext):
-    await message.answer("Joylashuvingizni kiriting", reply_markup=location_markup)
-    await state.set_state(NewMember.location)
-
 async def get_name_answer(message:Message, state:FSMContext):
     await state.update_data(name = message.text)
     await message.answer("Ismingiz qabul qilindi!")
@@ -59,8 +56,8 @@ async def get_name_answer(message:Message, state:FSMContext):
 async def get_phone_answer(message:Message, state:FSMContext):
     if message.contact.phone_number:
         await state.update_data(phone = message.contact.phone_number)
-        await message.answer("Kantaktingiz qabul qilindi!", reply_markup=lang_markup)
-        await message.answer("Tilni kiriting.")
+        await message.answer("Kantaktingiz qabul qilindi!")
+        await message.answer("Tilni kiriting", reply_markup=lang_markup)
         await state.set_state(NewMember.language)
     
 
@@ -70,14 +67,14 @@ async def get_language_answer(message:Message, state:FSMContext):
                (message.from_user.id, data.get('name'), data.get('phone'), message.text, "", now, False, False, False, now, now, now, None))
     connection.commit()
     await state.update_data(lang = message.text)
-    await message.answer("Til qabul qilindi!", reply_markup=location_markup)
-    await message.answer("Joylashuvingizni kiriting")
+    await message.answer("Til qabul qilindi!")
+    await message.answer("Joylashuvingizni kiriting", reply_markup=location_markup)
     await state.set_state(NewMember.location)
 
 async def get_location_answer(message:Message, state:FSMContext):
     await state.update_data(location_latitude = message.location.latitude, location_longitude=message.location.longitude)
-    await message.answer("Joylashuv qabul qilindi", reply_markup=water_button_markup)
-    await message.answer("Mahsulot turini kiriting")
+    await message.answer("Joylashuv qabul qilindi")
+    await message.answer("Mahsulot turini kiriting", reply_markup=water_button_markup)
     await state.set_state(NewMember.water)
 
 async def get_water_type_answer(message:Message, state:FSMContext):
@@ -88,31 +85,50 @@ async def get_water_type_answer(message:Message, state:FSMContext):
 
 async def much_water(message:Message, state:FSMContext):
     data = await state.get_data()
-    await message.answer("Buyurtma qabul qilindi")
-    if data.get('name'):
-        await message.answer(f"Ma'lumotlaringiz:\n\t\tIsmingiz: {data.get('name')}\n\t\tTel: {data.get('phone')}\n\t\tTil: {data.get('lang')}\n\t\tWater: {data.get('water')}\n\t\tMuch: {message.text} ta")
-        await message.answer("Buyurtma jo'natilsinimi?")
-    
-    cursor.execute("SELECT price FROM product_productmodel WHERE name = %s", (data.get('water'),))
+    cursor.execute("SELECT id, price FROM product_productmodel WHERE name = %s", (data.get('water'),))
+    product = cursor.fetchall()
+    cursor.execute("SELECT id FROM user_usermodel WHERE telegram_id = %s", (int(message.from_user.id),))
+    user = cursor.fetchall()
+    user_id = user[0][0]
     now = datetime.now()
-    product_price = cursor.fetchall()
-    total_price = int(message.text) * product_price
-    print(product_price)
-    for water in message.text:
-        print(water)
-        break
-    cursor.execute("INSERT INTO order_ordermodel (product_id, count, free_count, customer_id, longitude, latitude, status, status_changed_at, product_price, total_price, admin_id, condition, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", 
-                   (data.get('water'), message.text, 0, message.from_user.id, data.get('location_latitude'), data.get('location_longitude'), "Yaratildi", now, product_price, total_price, 1, "Yaratildi", now, now))
+    product_id = product[0][0]
+    product_price = product[0][1]
+    total_price = int(message.text ) * product_price
+    
+    cursor.execute("INSERT INTO order_ordermodel (product_id, count, free_count, customer_id, longitude, latitude, product_price, total_price, condition, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", 
+                   (product_id, int(message.text), 0, user_id, data.get('location_latitude'), data.get('location_longitude'), product_price, total_price, "Yaratildi", now, now))
     connection.commit()
-
+    await message.answer("Buyurtma qabul qilindi")
+    
 
 async def orders_answer(message:Message):
-    await message.answer("Orders:")
-    customer = message.from_user.id
-    cursor.execute("SELECT * FROM order_ordermodel WHERE %s = customer_id", (customer,))
-    rows = cursor.fetchall()
-    for row in rows:
-        message.answer(row)
+    cursor.execute("SELECT id FROM user_usermodel WHERE telegram_id = %s", (int(message.from_user.id),))
+    user = cursor.fetchone()
+    if user:
+        user_id = user[0]
+        cursor.execute("SELECT * FROM order_ordermodel WHERE %s = customer_id ORDER BY created_at DESC", (user_id,))
+        rows = cursor.fetchall()
+        created_at = rows[0][1]
+        formatted_date_time = created_at.strftime("%Y-%m-%d")
+        products = rows[0][3]
+        free_products = rows[0][4]
+        product_price = rows[0][7]
+        total_price = rows[0][8]
+        condition = rows[0][9]
+        if rows:
+            await message.answer(
+                f'Orders:\n'
+                f"created_at: {formatted_date_time}\n"
+                f"products: {products}\n"
+                f"free products: {free_products}\n"
+                f"product price: {product_price}\n"
+                f"total price: {str(total_price)}\n"
+                f"condition: {condition}"
+            )
+        else:
+            await message.an("No orders found")
+    else:
+        await message.answer("User not found")
 
 async def help_answer(message:Message):
     await message.answer("Operator tel: +998977777777")

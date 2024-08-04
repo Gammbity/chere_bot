@@ -26,7 +26,7 @@ dp = Dispatcher()
 async def start():
     # dp.startup.register(startup_answer)
     dp.message.register(functions.start_command_answer, CommandStart())
-    dp.message.register(functions.new_command_answer, Command('new'))
+    dp.message.register(functions.start_command_answer, Command('new'))
     dp.message.register(functions.orders_answer, Command('orders'))
     dp.message.register(functions.help_answer, Command('help'))
     dp.message.register(functions.get_name_answer, NewMember.name)
